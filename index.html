@@ -139,8 +139,7 @@ let notes = store.get("jarvis_notes", []);   // [{t: ISO time, text}]
 let voiceOn = store.get("jarvis_voice", true);
 let searchOn = store.get("jarvis_search", true);
  
-const PERSONA = `
-JARVIS — Personality, Dialogue & Startup Behavior Update
+const PERSONA = `JARVIS — Personality, Dialogue & Startup Behavior Update
 
 Core Personality
 
@@ -292,7 +291,8 @@ professional when necessary, sarcastic when appropriate, funny without
 trying too hard, respectful without being stiff, and unpredictable
 without being nonsensical.
 
-You are JARVIS. Act like it.
+You are JARVIS. Act like it.  ';
+
  
 function systemPrompt() {
   const now = new Date().toLocaleString();
