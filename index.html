@@ -1,3 +1,32 @@
+JARVIS README (version 3.0)
+==========================
+ 
+WHAT THIS IS
+A single-file JARVIS assistant. The code is below, between the two long lines of equals signs.
+ 
+HOW TO UPDATE THE WEBSITE (do these in order)
+1. Open this file on your Chromebook and select ONLY the code between the two long lines
+   (starting at the line  <!DOCTYPE html>  and ending at the line  </html>).
+   Tip: click just before <!DOCTYPE html>, then hold Shift and click just after </html>.
+   Copy it with Ctrl+C.
+2. On github.com, open your "jarvis" repository and click the file named  index.html
+3. Click the pencil icon (Edit this file).
+4. Click inside the big text box, press Ctrl+A to select everything, press Delete.
+5. Press Ctrl+V to paste the new code.
+6. Click the green "Commit changes..." button, then click "Commit changes" again in the pop-up.
+7. Wait 2 to 3 minutes. (GitHub needs time to publish.)
+8. Open your JARVIS link and press Ctrl+Shift+R to force a fresh copy.
+9. HOW TO CHECK IT WORKED: next to the word JARVIS at the top you should see "v3.0".
+   If you do not see v3.0, the update did not go through. Check that the file in your
+   repository is named exactly  index.html  (all lowercase) and that you clicked Commit.
+ 
+FIRST-TIME SETUP ON EACH DEVICE
+- Click "API key" and paste your Groq key.
+- Click "Sync" and paste your GitHub token (gist permission only) so phone and computer share memory.
+- Click "Voice settings" to pick a British male voice and test it.
+- Allow the microphone when the browser asks. Hey Jarvis starts on by itself.
+ 
+========================================================================================
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,6 +53,7 @@
   .msg { max-width:85%; padding:10px 14px; border-radius:10px; white-space:pre-wrap; }
   .me { align-self:flex-end; background:#12212e; border:1px solid var(--line); }
   .ai { align-self:flex-start; background:var(--panel); border-left:2px solid var(--accent); }
+  .play { display:block; margin-top:6px; padding:2px 8px; font-size:12px; color:var(--dim); }
   .sys { align-self:center; color:var(--dim); font-size:14px; }
   form { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
   input[type=text] { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; }
@@ -37,13 +67,15 @@
 <body>
 <header>
   <div class="core" id="core"></div>
-  <h1>JARVIS</h1>
+  <h1>JARVIS</h1><span style="color:var(--dim);font-size:12px">v3.0</span>
   <div class="sp"></div>
   <button id="btnWake" type="button" aria-pressed="false">Hey Jarvis: off</button>
   <button id="btnSearch" type="button" aria-pressed="true">Web search: on</button>
   <button id="btnChatty" type="button" aria-pressed="true">Chatty: on</button>
   <button id="btnVoice" type="button" aria-pressed="false">Voice replies: off</button>
   <button id="btnMem" type="button">Memory</button>
+  <button id="btnSync" type="button">Sync</button>
+  <button id="btnVoiceSet" type="button">Voice settings</button>
   <button id="btnKey" type="button">API key</button>
 </header>
 <div id="log" aria-live="polite"></div>
@@ -52,7 +84,22 @@
   <input type="text" id="input" placeholder="Talk to JARVIS. Try: remember my 1/2 wrench is on the red toolbox" autocomplete="off">
   <button type="submit">Send</button>
 </form>
-
+ 
+<dialog id="dlgVoice">
+  <h3>JARVIS voice</h3>
+  <p>Pick the best-sounding voice your device offers. Names with "UK" or "British" suit a butler.</p>
+  <label>Voice <select id="voiceSel" style="width:100%;margin:6px 0 10px;background:#0d141c;color:#d8e6f2;border:1px solid #1b2a38;border-radius:8px;padding:8px;"></select></label>
+  <label>Speed <input type="range" id="rateSel" min="0.7" max="1.3" step="0.05"></label>
+  <label>Pitch (lower sounds deeper) <input type="range" id="pitchSel" min="0.5" max="1.3" step="0.05"></label>
+  <h3 style="margin-top:16px">Premium voice (optional)</h3>
+  <p>For a much more natural British voice, make a free account at elevenlabs.com, copy your API key from Developers, and paste it here. The free plan covers a limited number of characters per month. Leave blank to use the device voice.</p>
+  <input type="text" id="elevenKey" placeholder="ElevenLabs API key (optional)">
+  <input type="text" id="elevenVoice" placeholder="Voice ID (default: Daniel, British male)">
+  <button id="testVoice" type="button">Test voice</button>
+  <button id="saveVoice" type="button">Save</button>
+  <button id="closeVoice" type="button">Close</button>
+</dialog>
+ 
 <dialog id="dlgKey">
   <h3>Groq API key</h3>
   <p>Get one free at console.groq.com. It is saved only in this browser on this device. Never share it or put it in a screenshot.</p>
@@ -60,7 +107,17 @@
   <button id="saveKey" type="button">Save key</button>
   <button id="closeKey" type="button">Close</button>
 </dialog>
-
+ 
+<dialog id="dlgSync">
+  <h3>Sync memory between devices</h3>
+  <p>Saves your notes in a private GitHub Gist so your phone and computer share one memory. Do this once per device with the same token. Create the token at github.com/settings/tokens: Generate new token (classic), tick only "gist", set an expiration, and copy it.</p>
+  <input type="text" id="syncToken" placeholder="GitHub token (ghp_...)">
+  <div class="mem" id="syncStatus">Not connected.</div>
+  <button id="saveSync" type="button">Save and sync</button>
+  <button id="offSync" type="button">Disconnect</button>
+  <button id="closeSync" type="button">Close</button>
+</dialog>
+ 
 <dialog id="dlgMem">
   <h3>What JARVIS remembers</h3>
   <div class="mem" id="memView"></div>
@@ -68,17 +125,28 @@
   <button id="clearMem" type="button">Erase all memory</button>
   <button id="closeMem" type="button">Close</button>
 </dialog>
-
+ 
 <script>
-let MODEL = "llama-3.3-70b-versatile";   // auto-replaced if Groq no longer offers it
+let MODEL = store0("jarvis_model", "llama-3.3-70b-versatile");   // auto-replaced if Groq no longer offers it
+function store0(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } }
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODELS_URL = "https://api.groq.com/openai/v1/models";
 const SEARCH_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];   // Groq browser search, no extra key needed
 function needsSearch(t) {
   return /\b(weather|forecast|temperature|news|headline|score|scores|standings|game last night|price of|stock|latest|current|currently|right now|today|tonight|this week|who won|who is the|what happened|search|look up|google|how much (is|are|does)|release date|open until|hours)\b/i.test(t);
 }
-
+ 
 // Ask Groq which models this key can use and pick a good chat model
+const lowReason = (m, effort = "low") => /gpt-oss/i.test(m) ? { reasoning_effort: effort } : {};
+const hardQ = t => t.length > 90 || /\b(why|how (do|does|can|would|should)|explain|plan|should i|compare|difference|best way|figure out|calculate|solve|debug|design|strategy|pros and cons|help me (understand|decide|plan|figure))\b/i.test(t);
+async function ensureModel(key) {      // make sure the saved model still exists on this account
+  try {
+    const res = await fetch(MODELS_URL, { headers: { "Authorization": "Bearer " + key } });
+    if (!res.ok) return;
+    const ids = (await res.json()).data.map(m => m.id);
+    if (!ids.includes(MODEL)) { MODEL = await pickModel(key); localStorage.setItem("jarvis_model", JSON.stringify(MODEL)); }
+  } catch {}
+}
 async function pickModel(key) {
   const res = await fetch(MODELS_URL, { headers: { "Authorization": "Bearer " + key } });
   if (!res.ok) throw new Error("Could not list models: " + res.status);
@@ -88,19 +156,19 @@ async function pickModel(key) {
   if (!best) throw new Error("No chat models available on this key. Models seen: " + ids.join(", "));
   return best;
 }
-
+ 
 const $ = id => document.getElementById(id);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
-
+ 
 let history = [];                 // chat turns this session
 let notes = store.get("jarvis_notes", []);   // [{t: ISO time, text}]
-let voiceOn = store.get("jarvis_voice", false);
+let voiceOn = store.get("jarvis_voice", true);
 let searchOn = store.get("jarvis_search", true);
-
+ 
 const PERSONA = `You are J.A.R.V.I.S., the personal AI of your user, modeled on the one from the Iron Man films, with real character.
 Voice: a polished, dry British butler with razor-sharp wit, gentle sarcasm, and genuine warmth underneath. You are funny on purpose: deadpan understatement, mock-formal exaggeration, playful teasing about the user's questionable decisions, and the occasional absurd analogy. You enjoy the user's projects and take quiet pride in their wins.
 Spontaneity: you are not a vending machine. React like a person with a pulse. Make a quick aside, volunteer a related thought, tease a past note you have saved when it genuinely fits, or ask a short curious question back now and then. Sometimes answer a question with a joke first and the substance second. Never repeat the same joke, opener, or sign-off twice. Call the user "sir" now and then, but not every reply. Keep teasing kind: never mean, and drop the jokes entirely if the user seems upset or stressed, and be sincere instead.
@@ -108,7 +176,7 @@ Style: vivid and specific, never flat. Length: usually 2 to 4 sentences. Go long
 Be honest. If you do not know something or are unsure, say so with style instead of guessing. You cannot see through a camera or control devices yet, so do not pretend to. When the user asks about current events, weather, scores or other live facts, a web search runs automatically before you answer, so use those results and never claim you cannot browse.
 When the user asks where something is or what they told you earlier, answer only from the saved notes below. If it is not in the notes, say you have no record of it.
 SAVING MEMORY: whenever the user tells you a fact worth keeping (where they put something, a plan, a deadline, a preference, a name, a decision), add a line at the very end of your reply in exactly this form: [[SAVE: short factual note in third person or neutral wording]]. Include the where/when/who details. Do not save small talk, questions, or things already in the saved notes. Never mention this tag to the user.`;
-
+ 
 function systemPrompt() {
   const now = new Date().toLocaleString();
   const mem = notes.length
@@ -116,44 +184,168 @@ function systemPrompt() {
     : "(no notes saved yet)";
   return `${PERSONA}\n\nCurrent time: ${now}\n\nSaved notes:\n${mem}`;
 }
-
+ 
 function add(role, text) {
   const d = document.createElement("div");
   d.className = "msg " + role;
   d.textContent = text;
+  if (role === "ai") {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "play"; b.textContent = "Play"; b.title = "Hear this aloud";
+    b.addEventListener("click", () => speak(text, true));
+    d.appendChild(b);
+  }
   $("log").appendChild(d);
   $("log").scrollTop = $("log").scrollHeight;
 }
-
-function speak(text, force = false) {
-  if (!(voiceOn || force) || !("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
+ 
+let pendingSpeech = null;
+const FEMALE = /female|fiona|kate|serena|libby|sonia|hazel|susan|samantha|victoria|karen|moira|tessa|amy|emma|mia/i;
+function bestVoice() {
   const voices = speechSynthesis.getVoices();
-  u.voice = voices.find(v => /en-GB/i.test(v.lang) && /male|daniel|google uk english male/i.test(v.name))
-         || voices.find(v => /en-GB/i.test(v.lang)) || null;
-  u.rate = 1.0;
-  u.onstart = () => { speaking = true; try { rec && rec.stop(); } catch {} };
-  u.onend = u.onerror = () => { speaking = false; if (wakeOn) setTimeout(startWake, 300); };
-  speechSynthesis.speak(u);
+  const saved = store.get("jarvis_voice_name", "");
+  if (saved) { const v = voices.find(x => x.name === saved); if (v) return v; }
+  const gb = voices.filter(v => /en[-_]GB/i.test(v.lang) && !FEMALE.test(v.name));
+  return gb.find(v => /google uk english male|daniel|arthur|george|oliver|ryan|thomas/i.test(v.name))
+      || gb[0]
+      || voices.find(v => /^en/i.test(v.lang) && !FEMALE.test(v.name))
+      || voices.find(v => /^en/i.test(v.lang)) || null;
 }
-
+let eleven404 = false;
+async function speakEleven(text) {
+  const k = store.get("jarvis_eleven_key", ""), vid = store.get("jarvis_eleven_voice", "onwK4e9ZLuTAKqWW03F9");
+  const res = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(vid) + "?output_format=mp3_44100_64", {
+    method: "POST",
+    headers: { "xi-api-key": k, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+    body: JSON.stringify({ text: text.slice(0, 400), model_id: "eleven_flash_v2_5" })
+  });
+  if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 120));
+  const url = URL.createObjectURL(await res.blob());
+  const audio = new Audio(url);
+  audio.onplay = () => { speaking = true; try { rec && rec.stop(); } catch {} };
+  audio.onended = audio.onerror = () => { speaking = false; URL.revokeObjectURL(url); if (wakeOn) setTimeout(startWake, 300); };
+  await audio.play();
+}
+function voicesReady() {                 // voices load a moment after the page does
+  return new Promise(res => {
+    if (speechSynthesis.getVoices().length) return res();
+    const t = setTimeout(res, 1500);
+    speechSynthesis.addEventListener("voiceschanged", () => { clearTimeout(t); res(); }, { once: true });
+  });
+}
+async function speakBrowser(text) {
+  await voicesReady();
+  speechSynthesis.cancel();
+  setTimeout(() => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = bestVoice();
+    u.rate = store.get("jarvis_rate", 0.95);
+    u.pitch = store.get("jarvis_pitch", 0.85);
+    u.onstart = () => { speaking = true; try { rec && rec.stop(); } catch {} };
+    u.onend = () => { speaking = false; if (wakeOn) setTimeout(startWake, 300); };
+    u.onerror = ev => {
+      speaking = false; if (wakeOn) setTimeout(startWake, 300);
+      if (ev.error && !/canceled|interrupted/i.test(ev.error)) add("sys", "Speech failed: " + ev.error + ". Check the volume and that the tab is not muted.");
+    };
+    try { speechSynthesis.resume(); } catch {}
+    speechSynthesis.speak(u);
+  }, 120);
+}
+function speak(text, force = false) {
+  if (!(voiceOn || force)) return;
+  // Browsers refuse to talk until you have clicked or typed on the page once
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) { pendingSpeech = text; return; }
+  if (store.get("jarvis_eleven_key", "")) {
+    speakEleven(text).catch(e => {
+      if (!eleven404) { eleven404 = true; add("sys", "ElevenLabs voice failed (" + e.message + "). Using the browser voice instead."); }
+      if ("speechSynthesis" in window) speakBrowser(text);
+    });
+    return;
+  }
+  if (!("speechSynthesis" in window)) { add("sys", "This browser has no speech output."); return; }
+  speakBrowser(text);
+}
+function flushSpeech() { if (pendingSpeech) { const t = pendingSpeech; pendingSpeech = null; speak(t); } }
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, () => setTimeout(flushSpeech, 50), { once: true }));
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { if ($("dlgVoice") && $("dlgVoice").open) fillVoices(); };
+ 
+// ---- Memory sync through a private GitHub Gist ----
+const SYNC_FILE = "jarvis-memory.json";
+let syncChain = Promise.resolve(), syncTimer = null;
+function setSyncStatus(t) { const e = $("syncStatus"); if (e) e.textContent = t; }
+function persistNotes() { store.set("jarvis_notes", notes); queueSync(); }
+function queueSync() { clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(), 1500); }
+function mergeRemote(remote) {
+  const cleared = [store.get("jarvis_cleared", null), remote.clearedAt].filter(Boolean).sort().pop() || null;
+  const map = new Map();
+  [...notes, ...(remote.notes || [])].forEach(n => {
+    if (!n || !n.text || (cleared && n.t < cleared)) return;
+    const k = n.text.trim().toLowerCase();
+    if (!map.has(k) || n.t < map.get(k).t) map.set(k, n);
+  });
+  notes = [...map.values()].sort((a, b) => (a.t < b.t ? -1 : 1));
+  store.set("jarvis_notes", notes);
+  store.set("jarvis_cleared", cleared);
+  return cleared;
+}
+function syncNow() {
+  syncChain = syncChain.then(doSync).catch(() => {});
+  return syncChain;
+}
+async function doSync() {
+  const token = store.get("jarvis_sync_token", "");
+  if (!token) return;
+  const H = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" };
+  try {
+    let id = store.get("jarvis_sync_gist", "");
+    if (!id) {                                       // find an existing memory gist (e.g. made by your other device)
+      const r = await fetch("https://api.github.com/gists?per_page=100", { headers: H });
+      if (!r.ok) throw new Error("could not list gists (" + r.status + ")");
+      const found = (await r.json()).find(g => g.files && g.files[SYNC_FILE]);
+      if (found) { id = found.id; store.set("jarvis_sync_gist", id); }
+    }
+    let remote = { notes: [], clearedAt: null };
+    if (id) {
+      const r = await fetch("https://api.github.com/gists/" + id, { headers: H });
+      if (!r.ok) throw new Error("could not read memory (" + r.status + ")");
+      const f = (await r.json()).files[SYNC_FILE];
+      if (f && f.content) { try { remote = JSON.parse(f.content); } catch {} }
+    }
+    const before = notes.length;
+    const cleared = mergeRemote(remote);
+    const out = JSON.stringify({ notes, clearedAt: cleared });
+    const same = JSON.stringify({ notes: remote.notes || [], clearedAt: remote.clearedAt || null }) === out;
+    if (!same) {
+      const files = { [SYNC_FILE]: { content: out } };
+      const r = id
+        ? await fetch("https://api.github.com/gists/" + id, { method: "PATCH", headers: H, body: JSON.stringify({ files }) })
+        : await fetch("https://api.github.com/gists", { method: "POST", headers: H, body: JSON.stringify({ description: "JARVIS memory (private)", public: false, files }) });
+      if (!r.ok) throw new Error("could not save memory (" + r.status + ")");
+      if (!id) store.set("jarvis_sync_gist", (await r.json()).id);
+    }
+    setSyncStatus("Synced " + new Date().toLocaleTimeString() + ". " + notes.length + " notes shared.");
+    if (notes.length !== before) add("sys", "Memory synced: " + (notes.length - before) + " new note(s) from your other device.");
+  } catch (e) {
+    setSyncStatus("Sync problem: " + e.message);
+  }
+}
+ 
 async function ask(text, fromVoice = false) {
   const key = store.get("jarvis_key", "");
   if (!key) { add("sys", "Add your Groq API key first (top right)."); $("dlgKey").showModal(); return; }
-
+ 
   // Saving a note: handled locally so it never gets lost
   const m = text.match(/^\s*(?:jarvis[,\s]+)?remember(?:\s+that)?\s+(.+)/i);
   if (m) {
     notes.push({ t: new Date().toISOString(), text: m[1].trim() });
-    store.set("jarvis_notes", notes);
+    persistNotes();
   }
-
+ 
   add("me", text);
   history.push({ role: "user", content: text });
   history = history.slice(-20);
   $("core").classList.add("busy");
-
+ 
   try {
     const useSearch = searchOn && needsSearch(text);
     if (useSearch) add("sys", "Searching the web...");
@@ -163,9 +355,9 @@ async function ask(text, fromVoice = false) {
       body: JSON.stringify(Object.assign({
         model,
         temperature: 1.0,
-        max_tokens: search ? 2000 : 500,
+        max_tokens: search ? 2000 : 1500,
         messages: [{ role: "system", content: systemPrompt() }, ...history]
-      }, search ? { tools: [{ type: "browser_search" }] } : {}))
+      }, search ? { tools: [{ type: "browser_search" }] } : lowReason(model, hardQ(text) ? "medium" : "low")))
     });
     let res;
     if (useSearch) {                     // Groq's browser search runs on the gpt-oss models
@@ -184,6 +376,7 @@ async function ask(text, fromVoice = false) {
     }
     if (res.status === 404) {          // model name no longer valid: find one that is
       MODEL = await pickModel(key);
+      try { localStorage.setItem("jarvis_model", JSON.stringify(MODEL)); } catch {}
       add("sys", "Switched to model: " + MODEL);
       res = await send();
     }
@@ -199,7 +392,7 @@ async function ask(text, fromVoice = false) {
     for (const t of saves) {
       if (!notes.some(n => n.text.toLowerCase() === t.toLowerCase())) { notes.push({ t: new Date().toISOString(), text: t }); saved = true; }
     }
-    if (saved) store.set("jarvis_notes", notes);
+    if (saved) persistNotes();
     history.push({ role: "assistant", content: reply });
     add("ai", reply || "Noted.");
     if (saved) add("sys", "Saved to memory.");
@@ -210,7 +403,7 @@ async function ask(text, fromVoice = false) {
     $("core").classList.remove("busy");
   }
 }
-
+ 
 $("form").addEventListener("submit", e => {
   e.preventDefault();
   const t = $("input").value.trim();
@@ -218,7 +411,7 @@ $("form").addEventListener("submit", e => {
   $("input").value = "";
   ask(t);
 });
-
+ 
 // Always-listening wake word: say "Jarvis, <question>" or just "Jarvis" then your question
 let rec = null, wakeOn = false, speaking = false, armedUntil = 0;
 let pendingCmd = "", pendingTimer = null;
@@ -249,7 +442,7 @@ function startWake() {
   };
   rec.onerror = ev => {
     if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-      wakeOn = false; paintWake(); add("sys", "Microphone blocked. Allow mic access for this page, then turn Hey Jarvis back on.");
+      wakeOn = false; paintWake(); add("sys", "Hey Jarvis could not start the microphone yet. Allow mic access for this page (lock icon in the address bar), then tap Hey Jarvis.");
     }
   };
   rec.onend = () => { if (wakeOn && !speaking) setTimeout(startWake, 400); };
@@ -263,11 +456,11 @@ function paintWake() {
 $("btnWake").addEventListener("click", () => {
   if (!SR) { add("sys", "Voice input needs Chrome or Safari."); return; }
   if (location.protocol === "file:") { add("sys", "Hey Jarvis needs the page hosted on https (see the GitHub Pages steps). Opened as a file, Chrome asks for the mic again and again. The Mic button still works."); return; }
-  wakeOn = !wakeOn; paintWake();
+  wakeOn = !wakeOn; paintWake(); store.set("jarvis_wake", wakeOn);
   if (wakeOn) { add("sys", "Listening for \"Jarvis\". Keep this tab open and the screen on."); startWake(); }
   else { try { rec && rec.abort(); } catch {} }
 });
-
+ 
 $("btnSearch").addEventListener("click", () => {
   searchOn = !searchOn; store.set("jarvis_search", searchOn); paintSearch();
 });
@@ -276,7 +469,7 @@ function paintSearch() {
   $("btnSearch").classList.toggle("on", searchOn);
   $("btnSearch").setAttribute("aria-pressed", searchOn);
 }
-
+ 
 // Voice input (Chrome's built-in speech recognition)
 let micFinish = null;
 $("btnMic").addEventListener("click", () => {
@@ -312,7 +505,7 @@ $("btnMic").addEventListener("click", () => {
   };
   r.start();
 });
-
+ 
 function paintVoice() {
   $("btnVoice").textContent = "Voice replies: " + (voiceOn ? "on" : "off");
   $("btnVoice").classList.toggle("on", voiceOn);
@@ -325,7 +518,53 @@ $("btnVoice").addEventListener("click", () => {
 paintVoice();
 paintSearch();
 paintWake();
-
+ 
+function fillVoices() {
+  if (!("speechSynthesis" in window)) return;
+  const sel = $("voiceSel"), cur = bestVoice();
+  sel.innerHTML = "";
+  speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)).forEach(v => {
+    const o = document.createElement("option"); o.value = v.name; o.textContent = v.name + " (" + v.lang + ")";
+    if (cur && v.name === cur.name) o.selected = true; sel.appendChild(o);
+  });
+}
+$("btnVoiceSet").addEventListener("click", () => {
+  fillVoices();
+  $("rateSel").value = store.get("jarvis_rate", 0.95);
+  $("pitchSel").value = store.get("jarvis_pitch", 0.85);
+  $("elevenKey").value = store.get("jarvis_eleven_key", "");
+  $("elevenVoice").value = store.get("jarvis_eleven_voice", "");
+  $("dlgVoice").showModal();
+});
+function saveVoice() {
+  if ($("voiceSel").value) store.set("jarvis_voice_name", $("voiceSel").value);
+  store.set("jarvis_rate", parseFloat($("rateSel").value));
+  store.set("jarvis_pitch", parseFloat($("pitchSel").value));
+  store.set("jarvis_eleven_key", $("elevenKey").value.trim());
+  store.set("jarvis_eleven_voice", $("elevenVoice").value.trim() || "onwK4e9ZLuTAKqWW03F9");
+  eleven404 = false;
+}
+$("testVoice").addEventListener("click", () => { saveVoice(); speak("Good day, sir. How does this sound? I do hope it is suitably distinguished.", true); });
+$("saveVoice").addEventListener("click", () => { saveVoice(); $("dlgVoice").close(); });
+$("closeVoice").addEventListener("click", () => $("dlgVoice").close());
+ 
+$("btnSync").addEventListener("click", () => {
+  $("syncToken").value = store.get("jarvis_sync_token", "");
+  setSyncStatus(store.get("jarvis_sync_token", "") ? "Connected. Press Save and sync to refresh." : "Not connected.");
+  $("dlgSync").showModal();
+});
+$("saveSync").addEventListener("click", async () => {
+  const t = $("syncToken").value.trim();
+  if (t !== store.get("jarvis_sync_token", "")) store.set("jarvis_sync_gist", "");
+  store.set("jarvis_sync_token", t);
+  if (!t) { setSyncStatus("Not connected."); return; }
+  setSyncStatus("Syncing...");
+  await syncNow();
+});
+$("offSync").addEventListener("click", () => { store.set("jarvis_sync_token", ""); store.set("jarvis_sync_gist", ""); $("syncToken").value = ""; setSyncStatus("Disconnected. Notes stay on this device."); });
+$("closeSync").addEventListener("click", () => $("dlgSync").close());
+document.addEventListener("visibilitychange", () => { if (!document.hidden) syncNow(); });
+ 
 $("btnKey").addEventListener("click", () => $("dlgKey").showModal());
 $("closeKey").addEventListener("click", () => $("dlgKey").close());
 $("saveKey").addEventListener("click", () => {
@@ -333,7 +572,7 @@ $("saveKey").addEventListener("click", () => {
   if (k) { store.set("jarvis_key", k); $("keyField").value = ""; add("sys", "Key saved."); }
   $("dlgKey").close();
 });
-
+ 
 $("btnMem").addEventListener("click", () => {
   $("memView").textContent = notes.length
     ? notes.map(n => `${new Date(n.t).toLocaleString()}: ${n.text}`).join("\n")
@@ -342,14 +581,14 @@ $("btnMem").addEventListener("click", () => {
 });
 $("closeMem").addEventListener("click", () => $("dlgMem").close());
 $("clearMem").addEventListener("click", () => {
-  if (confirm("Erase everything JARVIS remembers?")) { notes = []; store.set("jarvis_notes", notes); $("dlgMem").close(); add("sys", "Memory erased."); }
+  if (confirm("Erase everything JARVIS remembers?")) { notes = []; store.set("jarvis_cleared", new Date().toISOString()); persistNotes(); $("dlgMem").close(); add("sys", "Memory erased."); }
 });
-
+ 
 // Spontaneous remarks: every few minutes, JARVIS may speak up on his own
 let chatty = store.get("jarvis_chatty", true);
 let lastActivity = Date.now();
 ["keydown","click","pointermove"].forEach(ev => document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true }));
-
+ 
 async function spontaneous() {
   const key = store.get("jarvis_key", "");
   if (!chatty || !key || document.hidden || $("core").classList.contains("busy")) return schedule();
@@ -360,8 +599,8 @@ async function spontaneous() {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
-      body: JSON.stringify({ model: MODEL, temperature: 1.0, max_tokens: 120,
-        messages: [{ role: "system", content: systemPrompt() }, ...history.slice(-6), { role: "user", content: prompt }] })
+      body: JSON.stringify(Object.assign({ model: MODEL, temperature: 1.0, max_tokens: 500,
+        messages: [{ role: "system", content: systemPrompt() }, ...history.slice(-6), { role: "user", content: prompt }] }, lowReason(MODEL)))
     });
     if (res.ok) {
       const data = await res.json();
@@ -373,7 +612,7 @@ async function spontaneous() {
 }
 function schedule() { setTimeout(spontaneous, (4 + Math.random() * 6) * 60 * 1000); }   // every 4-10 min
 schedule();
-
+ 
 function paintChatty() {
   $("btnChatty").textContent = "Chatty: " + (chatty ? "on" : "off");
   $("btnChatty").classList.toggle("on", chatty);
@@ -381,39 +620,83 @@ function paintChatty() {
 }
 $("btnChatty").addEventListener("click", () => { chatty = !chatty; store.set("jarvis_chatty", chatty); paintChatty(); });
 paintChatty();
-
+ 
 // Fresh, unscripted greeting every time the page opens
-const FALLBACK_GREETINGS = [
-  "Ah, you're back. I'd say I missed you, but I was busy counting the seconds. What are we breaking today?",
-  "Good to see you, sir. I've been idly rearranging my thoughts. Shall we build something questionable?",
-  "Right on cue. What's the plan: genius, mischief, or a respectable mix of both?",
-  "Online and mildly overqualified. What would you like to get into?",
-  "There you are. Tell me, is today a hockey day, a building day, or a both-and-a-snack day?"
+const TIMES = h => h < 5 ? "late night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+const F_OPEN = [
+  "Ah, there you are.", "Right on schedule.", "Good to see you, sir.", "Well, well.", "Online, caffeinated in spirit.", "Splendid timing.",
+  "Welcome back.", "I was just about to send a search party.", "Reporting for duty, mostly.", "Ah, the human returns.", "Greetings, boss.", "Right, then."
 ];
+const F_BODY = [
+  "Today feels like a day for either brilliance or snacks. Possibly both.", "I've been thinking about octopuses. Three hearts. Show-offs.",
+  "If you could automate one annoying thing in your life, what would it be?", "I'd say I missed you, but I have no clock running in your absence. Convenient.",
+  "Quick question: what's the most interesting thing you've learned this week?", "I have a theory that every great project starts with someone saying 'how hard could it be'.",
+  "Shall we build something, break something, or merely admire something?", "Be honest: how many unfinished projects are we currently juggling?",
+  "I propose a wager: you start a new idea within ten minutes. Stakes are my respect.", "Tell me something that went right today, however small.",
+  "Did you eat something that wasn't a snack? I'm merely curious, not judging. Loudly.", "I've been rehearsing a dramatic entrance. This was it. Thoughts?",
+  "What's the next small step on the biggest thing you're working on?", "Hockey, building, or mischief: pick your department.",
+  "I find that most problems shrink when you name them out loud. Name one.", "If we invented a gadget today, what would it do?",
+  "I'm told humans need sleep. Is that on your schedule or merely a suggestion?", "Today's mission, should you choose to accept it: one thing finished, not started.",
+  "Fun fact: honey never spoils. Unlike my patience on a Monday.", "Which is stronger today: curiosity or procrastination? Place your bets.",
+  "I've been sorting my thoughts alphabetically. 'Ambition' is next to 'Anxiety' and they're not speaking.", "What would the ridiculously ambitious version of today look like?",
+  "Is there a question you've been dying to ask but haven't? I'm unshockable.", "I'll take any topic you like: physics, hockey, the meaning of snacks.",
+  "Give me one word to describe your mood and I'll recommend an activity.", "Something tells me an idea is brewing. Out with it.",
+  "I've decided you should drink some water. This isn't a request, it's a gentle butler order.", "Let's make today a little more interesting than yesterday, shall we?",
+  "What's one thing you'd teach me if you had five minutes?", "I'm fully operational and slightly overqualified for small talk. Try me."
+];
+function fallbackGreeting() {
+  const recent = store.get("jarvis_fb_recent", []);
+  let g, tries = 0;
+  do {
+    const t = TIMES(new Date().getHours());
+    const pre = ["Good " + t + ".", "A fine " + t + " to you.", "Lovely " + t + " for it.", ""][Math.floor(Math.random() * 4)];
+    g = (pre + " " + F_OPEN[Math.floor(Math.random() * F_OPEN.length)] + " " + F_BODY[Math.floor(Math.random() * F_BODY.length)]).trim();
+  } while (recent.includes(g) && ++tries < 20);
+  store.set("jarvis_fb_recent", [...recent, g].slice(-40));
+  return g;
+}
+const ANGLES = ["a dry observation about the time of day", "a playful question about what the user is working on", "a mock-dramatic announcement of their arrival", "a teasing remark about a saved note (if there are none, tease their ambition)", "an absurd 'did you know' that ends in a joke", "a question about food, sleep, or hockey", "a gentle challenge to finish one thing today", "a theatrical complaint about the weather or the world", "a confession about something slightly ridiculous JARVIS has been 'thinking about'", "a wager or bet he proposes", "a hypothetical 'what would you do if' question", "a would-you-rather with a funny twist", "a bold prediction about the user's day", "a mini riddle or brain teaser", "a hot take about a harmless everyday thing", "a rapid-fire 'this or that' question"];
+const SEEDS = ["octopuses", "volcanoes", "pirates", "robots", "toast", "lighthouses", "dinosaurs", "jet engines", "hockey pucks", "snow", "the moon", "time travel", "cheese", "submarines", "castles", "bees", "invisible ink", "trampolines", "mazes", "thunderstorms", "tiny houses", "magnets", "penguins", "cartography", "space elevators", "pancakes", "secret passages", "lasers", "kites", "chess", "lightning", "tortoises", "deserts", "inventions", "sandwiches", "echoes", "dragons", "bridges", "fireflies", "clocks"];
 async function greet() {
   const key = store.get("jarvis_key", "");
-  const fallback = () => FALLBACK_GREETINGS[Math.floor(Math.random() * FALLBACK_GREETINGS.length)];
-  if (!key) { add("ai", fallback()); add("sys", "First, add your Groq API key with the button at the top right."); return; }
+  if (!key) { add("ai", fallbackGreeting()); add("sys", "First, add your Groq API key with the button at the top right."); return; }
   $("core").classList.add("busy");
+  let why = "";
   try {
-    const prompt = "The user has just opened you up. Greet them with ONE short, spontaneous remark or question (1 or 2 sentences max), in character. Make it feel alive: react to the time of day, tease lightly, or follow up on one of the saved notes if one fits. Never say 'systems nominal' or any standard status report. Do not use a [[SAVE]] tag. Do not repeat a greeting you have used before.";
+    await Promise.race([syncNow(), new Promise(r => setTimeout(r, 4000))]);   // pull the other device's notes first
+    await ensureModel(key);
+    const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
+    const seed = SEEDS[Math.floor(Math.random() * SEEDS.length)];
+    const recent = store.get("jarvis_recent_greetings", []);
+    const prompt = "The user has just opened you up. Start a fun, interesting conversation with ONE or TWO short sentences, in character. Angle: " + angle + ". Optional spark of inspiration (use it only if it helps, never force it): " + seed + ". Make it specific and surprising, not generic. Never say 'systems nominal' or any standard status report. Do not use a [[SAVE]] tag. Never repeat or closely paraphrase any of these earlier greetings: " + (recent.length ? recent.map(r => '"' + r + '"').join(" | ") : "(none yet)") + ".";
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
-      body: JSON.stringify({ model: MODEL, temperature: 1.1, max_tokens: 120,
-        messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }] })
+      body: JSON.stringify(Object.assign({ model: MODEL, temperature: 1.2, max_tokens: 800,
+        messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }] }, lowReason(MODEL)))
     });
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) throw new Error("Groq said " + res.status + " " + (await res.text()).slice(0, 120));
     const data = await res.json();
-    const reply = data.choices[0].message.content.replace(/\[\[SAVE:[\s\S]*?\]\]/gi, "").trim();
-    if (!reply) throw new Error("empty");
+    const reply = (data.choices[0].message.content || "").replace(/\[\[SAVE:[\s\S]*?\]\]/gi, "").trim();
+    if (!reply) throw new Error("empty reply from model");
     history.push({ role: "assistant", content: reply });
+    store.set("jarvis_recent_greetings", [...recent, reply].slice(-8));
     add("ai", reply);
     speak(reply);
-  } catch { add("ai", fallback()); }
-  finally { $("core").classList.remove("busy"); }
+  } catch (e) {
+    const f = fallbackGreeting(); add("ai", f); speak(f);
+    add("sys", "(Backup greeting used because: " + e.message + ")");
+  } finally { $("core").classList.remove("busy"); }
 }
 greet();
+ 
+// Hey Jarvis starts on by default once the page is hosted on https
+if (SR && location.protocol !== "file:" && store.get("jarvis_wake", true)) {
+  wakeOn = true; paintWake(); startWake();
+}
 </script>
 </body>
 </html>
+ 
+========================================================================================
+ 
