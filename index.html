@@ -38,7 +38,7 @@
 <body>
 <header>
   <div class="core" id="core"></div>
-  <h1>JARVIS</h1><span style="color:var(--dim);font-size:12px">v3.1</span>
+  <h1>JARVIS</h1><span style="color:var(--dim);font-size:12px">v3.2</span>
   <div class="sp"></div>
   <button id="btnWake" type="button" aria-pressed="false">Hey Jarvis: off</button>
   <button id="btnSearch" type="button" aria-pressed="true">Web search: on</button>
@@ -58,11 +58,12 @@
  
 <dialog id="dlgVoice">
   <h3>JARVIS premium voice</h3>
+  <p><strong>Voice design profile:</strong> refined British English; mid-low register; smooth, composed, precise articulation; calm and intelligent; understated dry wit and subtle warmth; measured conversational pace. Avoid announcer, audiobook, exaggerated bass, theatrical delivery, and robotic cadence. Inspired by a cinematic AI but an original voice.</p>
   <p>Premium voices only. JARVIS will never fall back to the computer's robotic speech. If the primary premium voice fails, he will try the backup premium voice; if both fail, he will stay silent and display an error.</p>
   <label>Primary premium voice ID <input type="text" id="elevenVoice" placeholder="Eldrin — British baritone"></label>
-  <p>Default: Eldrin — Crisp British Baritone</p>
+  <p>Custom voice recommended: create a voice using the JARVIS profile below, then paste its ID here.</p>
   <label>Backup premium voice ID <input type="text" id="elevenBackup" placeholder="Finley — British voice"></label>
-  <p>Default backup: Finley — Articulate Anchor</p>
+  <p>Use a second voice with the same profile for backup.</p>
   <label>ElevenLabs API key <input type="password" id="elevenKey" placeholder="Paste your ElevenLabs API key"></label>
   <button id="testVoice" type="button">Test voice</button>
   <button id="saveVoice" type="button">Save</button>
@@ -169,8 +170,8 @@ function add(role, text) {
 }
  
 let pendingSpeech = null;
-const PRIMARY_VOICE = "6WwXjDDEMyNmFG95zycZ"; // Eldrin — Crisp British Baritone
-const BACKUP_VOICE = "fnYMz3F5gMEDGMWcH1ex"; // Finley — Articulate Anchor
+const PRIMARY_VOICE = ""; // Set after the custom voice is created
+const BACKUP_VOICE = ""; // Optional matching backup voice
 let elevenFallbackNotice = false;
 async function speakElevenWithVoice(text, voiceId) {
   const key = store.get("jarvis_eleven_key", "");
@@ -194,6 +195,7 @@ async function speakElevenWithVoice(text, voiceId) {
 async function speakPremium(text) {
   const primary = store.get("jarvis_eleven_voice", PRIMARY_VOICE) || PRIMARY_VOICE;
   const backup = store.get("jarvis_eleven_backup", BACKUP_VOICE) || BACKUP_VOICE;
+  if (!primary) { add("sys", "JARVIS voice is not configured. Create your custom voice and enter its Voice ID in Voice settings."); return; }
   try {
     await speakElevenWithVoice(text, primary);
   } catch (primaryError) {
@@ -477,11 +479,11 @@ $("btnVoiceSet").addEventListener("click", () => {
 });
 function saveVoice() {
   store.set("jarvis_eleven_key", $("elevenKey").value.trim());
-  store.set("jarvis_eleven_voice", $("elevenVoice").value.trim() || PRIMARY_VOICE);
-  store.set("jarvis_eleven_backup", $("elevenBackup").value.trim() || BACKUP_VOICE);
+  store.set("jarvis_eleven_voice", $("elevenVoice").value.trim());
+  store.set("jarvis_eleven_backup", $("elevenBackup").value.trim());
   elevenFallbackNotice = false;
 }
-$("testVoice").addEventListener("click", () => { saveVoice(); speak("Good day, sir. How does this sound? I do hope it is suitably distinguished.", true); });
+$("testVoice").addEventListener("click", () => { saveVoice(); speak("Good day, sir. All systems are online. Shall we proceed?", true); });
 $("saveVoice").addEventListener("click", () => { saveVoice(); $("dlgVoice").close(); });
 $("closeVoice").addEventListener("click", () => $("dlgVoice").close());
  
@@ -634,7 +636,3 @@ if (SR && location.protocol !== "file:" && store.get("jarvis_wake", true)) {
 </script>
 </body>
 </html>
- 
-
-
-
