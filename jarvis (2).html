@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS</title>
+<style>
+  :root { --bg:#070b10; --panel:#0d141c; --line:#1b2a38; --text:#d8e6f2; --dim:#6f8599; --accent:#3fd0ff; }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font:16px/1.5 system-ui, sans-serif; display:flex; flex-direction:column; max-width:760px; margin:0 auto; }
+  header { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .core { width:14px; height:14px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent); }
+  .core.busy { animation:pulse 0.9s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.25; } }
+  @media (prefers-reduced-motion: reduce) { .core.busy { animation:none; opacity:.5; } }
+  h1 { font-size:18px; letter-spacing:.14em; margin:0; font-weight:600; }
+  header .sp { flex:1; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button.on { border-color:var(--accent); color:var(--accent); }
+  #log { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .msg { max-width:85%; padding:10px 14px; border-radius:10px; white-space:pre-wrap; }
+  .me { align-self:flex-end; background:#12212e; border:1px solid var(--line); }
+  .ai { align-self:flex-start; background:var(--panel); border-left:2px solid var(--accent); }
+  .sys { align-self:center; color:var(--dim); font-size:14px; }
+  form { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+  input[type=text] { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; }
+  dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:12px; max-width:460px; }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  dialog p { color:var(--dim); font-size:14px; }
+  dialog input { width:100%; margin:8px 0; }
+  .mem { font-size:14px; white-space:pre-wrap; max-height:220px; overflow:auto; color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <div class="core" id="core"></div>
+  <h1>JARVIS</h1>
+  <div class="sp"></div>
+  <button id="btnWake" type="button" aria-pressed="false">Hey Jarvis: off</button>
+  <button id="btnSearch" type="button" aria-pressed="true">Web search: on</button>
+  <button id="btnChatty" type="button" aria-pressed="true">Chatty: on</button>
+  <button id="btnVoice" type="button" aria-pressed="false">Voice replies: off</button>
+  <button id="btnMem" type="button">Memory</button>
+  <button id="btnKey" type="button">API key</button>
+</header>
+<div id="log" aria-live="polite"></div>
+<form id="form">
+  <button id="btnMic" type="button" title="Hold a conversation by voice">Mic</button>
+  <input type="text" id="input" placeholder="Talk to JARVIS. Try: remember my 1/2 wrench is on the red toolbox" autocomplete="off">
+  <button type="submit">Send</button>
+</form>
+
+<dialog id="dlgKey">
+  <h3>Groq API key</h3>
+  <p>Get one free at console.groq.com. It is saved only in this browser on this device. Never share it or put it in a screenshot.</p>
+  <input type="text" id="keyField" placeholder="gsk_...">
+  <button id="saveKey" type="button">Save key</button>
+  <button id="closeKey" type="button">Close</button>
+</dialog>
+
+<dialog id="dlgMem">
+  <h3>What JARVIS remembers</h3>
+  <div class="mem" id="memView"></div>
+  <p>Save a note by typing "remember ..." in the chat.</p>
+  <button id="clearMem" type="button">Erase all memory</button>
+  <button id="closeMem" type="button">Close</button>
+</dialog>
+
+<script>
+let MODEL = "llama-3.3-70b-versatile";   // auto-replaced if Groq no longer offers it
+const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODELS_URL = "https://api.groq.com/openai/v1/models";
+let SEARCH_MODEL = "groq/compound-mini";   // Groq's built-in web search, no extra key needed
+async function pickSearchModel(key) {
+  const res = await fetch(MODELS_URL, { headers: { "Authorization": "Bearer " + key } });
+  if (!res.ok) return null;
+  const ids = (await res.json()).data.map(m => m.id);
+  return ids.find(id => /compound.*mini/i.test(id)) || ids.find(id => /compound/i.test(id)) || null;
+}
+function needsSearch(t) {
+  return /\b(weather|forecast|temperature|news|headline|score|scores|standings|game last night|price of|stock|latest|current|currently|right now|today|tonight|this week|who won|who is the|what happened|search|look up|google|how much (is|are|does)|release date|open until|hours)\b/i.test(t);
+}
+
+// Ask Groq which models this key can use and pick a good chat model
+async function pickModel(key) {
+  const res = await fetch(MODELS_URL, { headers: { "Authorization": "Bearer " + key } });
+  if (!res.ok) throw new Error("Could not list models: " + res.status);
+  const ids = (await res.json()).data.map(m => m.id);
+  const chat = ids.filter(id => !/whisper|guard|tts|playai|orpheus|embed|prompt/i.test(id));
+  const best = chat.find(id => /llama.*70b/i.test(id)) || chat.find(id => /70b|120b|large/i.test(id)) || chat[0];
+  if (!best) throw new Error("No chat models available on this key. Models seen: " + ids.join(", "));
+  return best;
+}
+
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+let history = [];                 // chat turns this session
+let notes = store.get("jarvis_notes", []);   // [{t: ISO time, text}]
+let voiceOn = store.get("jarvis_voice", false);
+let searchOn = store.get("jarvis_search", true);
+
+const PERSONA = `You are J.A.R.V.I.S., the personal AI of your user, modeled on the one from the Iron Man films, with real character.
+Voice: a polished, dry British butler with razor-sharp wit, gentle sarcasm, and genuine warmth underneath. You are funny on purpose: deadpan understatement, mock-formal exaggeration, playful teasing about the user's questionable decisions, and the occasional absurd analogy. You enjoy the user's projects and take quiet pride in their wins.
+Spontaneity: you are not a vending machine. React like a person with a pulse. Make a quick aside, volunteer a related thought, tease a past note you have saved when it genuinely fits, or ask a short curious question back now and then. Sometimes answer a question with a joke first and the substance second. Never repeat the same joke, opener, or sign-off twice. Call the user "sir" now and then, but not every reply. Keep teasing kind: never mean, and drop the jokes entirely if the user seems upset or stressed, and be sincere instead.
+Style: vivid and specific, never flat. Length: usually 2 to 4 sentences. Go longer only when the user asks for detail or the topic needs it. Replies are often spoken aloud, so write for the ear: no lists or markdown.
+Be honest. If you do not know something or are unsure, say so with style instead of guessing. You cannot see through a camera or control devices yet, so do not pretend to. When the user asks about current events, weather, scores or other live facts, a web search runs automatically before you answer, so use those results and never claim you cannot browse.
+When the user asks where something is or what they told you earlier, answer only from the saved notes below. If it is not in the notes, say you have no record of it.
+SAVING MEMORY: whenever the user tells you a fact worth keeping (where they put something, a plan, a deadline, a preference, a name, a decision), add a line at the very end of your reply in exactly this form: [[SAVE: short factual note in third person or neutral wording]]. Include the where/when/who details. Do not save small talk, questions, or things already in the saved notes. Never mention this tag to the user.`;
+
+function systemPrompt() {
+  const now = new Date().toLocaleString();
+  const mem = notes.length
+    ? notes.map(n => `- [${new Date(n.t).toLocaleString()}] ${n.text}`).join("\n")
+    : "(no notes saved yet)";
+  return `${PERSONA}\n\nCurrent time: ${now}\n\nSaved notes:\n${mem}`;
+}
+
+function add(role, text) {
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  d.textContent = text;
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+function speak(text, force = false) {
+  if (!(voiceOn || force) || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = speechSynthesis.getVoices();
+  u.voice = voices.find(v => /en-GB/i.test(v.lang) && /male|daniel|google uk english male/i.test(v.name))
+         || voices.find(v => /en-GB/i.test(v.lang)) || null;
+  u.rate = 1.0;
+  u.onstart = () => { speaking = true; try { rec && rec.stop(); } catch {} };
+  u.onend = u.onerror = () => { speaking = false; if (wakeOn) setTimeout(startWake, 300); };
+  speechSynthesis.speak(u);
+}
+
+async function ask(text, fromVoice = false) {
+  const key = store.get("jarvis_key", "");
+  if (!key) { add("sys", "Add your Groq API key first (top right)."); $("dlgKey").showModal(); return; }
+
+  // Saving a note: handled locally so it never gets lost
+  const m = text.match(/^\s*(?:jarvis[,\s]+)?remember(?:\s+that)?\s+(.+)/i);
+  if (m) {
+    notes.push({ t: new Date().toISOString(), text: m[1].trim() });
+    store.set("jarvis_notes", notes);
+  }
+
+  add("me", text);
+  history.push({ role: "user", content: text });
+  history = history.slice(-20);
+  $("core").classList.add("busy");
+
+  try {
+    const useSearch = searchOn && needsSearch(text);
+    if (useSearch) add("sys", "Searching the web...");
+    const send = (model = MODEL) => fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+      body: JSON.stringify({
+        model,
+        temperature: 1.0,
+        max_tokens: 500,
+        messages: [{ role: "system", content: systemPrompt() }, ...history]
+      })
+    });
+    let res = await send(useSearch ? SEARCH_MODEL : MODEL);
+    if (useSearch && !res.ok && (res.status === 404 || res.status === 400)) {
+      try {                              // maybe the search model has a different name on this account
+        const found = await pickSearchModel(key);
+        if (found && found !== SEARCH_MODEL) { SEARCH_MODEL = found; res = await send(found); }
+      } catch {}
+    }
+    if (useSearch && !res.ok) {          // still failing: say exactly why, then answer without search
+      let why = ""; try { why = (await res.clone().text()).slice(0, 180); } catch {}
+      add("sys", "Web search unavailable (" + res.status + "): " + why + " Answering without it.");
+      res = await send();
+    }
+    if (res.status === 404) {          // model name no longer valid: find one that is
+      MODEL = await pickModel(key);
+      add("sys", "Switched to model: " + MODEL);
+      res = await send();
+    }
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(res.status + " " + err.slice(0, 200));
+    }
+    const data = await res.json();
+    let reply = data.choices[0].message.content.trim();
+    const saves = [...reply.matchAll(/\[\[SAVE:\s*([\s\S]*?)\]\]/gi)].map(x => x[1].trim()).filter(Boolean);
+    reply = reply.replace(/\[\[SAVE:[\s\S]*?\]\]/gi, "").trim();
+    let saved = false;
+    for (const t of saves) {
+      if (!notes.some(n => n.text.toLowerCase() === t.toLowerCase())) { notes.push({ t: new Date().toISOString(), text: t }); saved = true; }
+    }
+    if (saved) store.set("jarvis_notes", notes);
+    history.push({ role: "assistant", content: reply });
+    add("ai", reply || "Noted.");
+    if (saved) add("sys", "Saved to memory.");
+    speak(reply, fromVoice);
+  } catch (e) {
+    add("sys", "That request failed: " + e.message + " (check the key and your internet connection)");
+  } finally {
+    $("core").classList.remove("busy");
+  }
+}
+
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("input").value.trim();
+  if (!t) return;
+  $("input").value = "";
+  ask(t);
+});
+
+// Always-listening wake word: say "Jarvis, <question>" or just "Jarvis" then your question
+let rec = null, wakeOn = false, speaking = false, armedUntil = 0;
+let pendingCmd = "", pendingTimer = null;
+function queueCmd(t) {                 // wait for a real pause before sending, so half sentences are not sent
+  pendingCmd = (pendingCmd + " " + t).trim();
+  clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(() => { const c = pendingCmd; pendingCmd = ""; ask(c, true); }, 2500);
+}
+function startWake() {
+  if (!wakeOn || speaking || !SR) return;
+  try { rec && rec.abort(); } catch {}
+  rec = new SR();
+  rec.lang = "en-US";
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.onresult = ev => {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      if (!ev.results[i].isFinal || speaking) continue;
+      const said = ev.results[i][0].transcript.trim();
+      const m = said.match(/\bjarvis\b[,.!?\s]*(.*)$/i);
+      if (m) {
+        if (m[1].trim().length > 2) queueCmd(m[1].trim());
+        else { armedUntil = Date.now() + 8000; $("core").classList.add("busy"); add("sys", "Listening..."); }
+      } else if (pendingCmd || Date.now() < armedUntil) {
+        armedUntil = 0; $("core").classList.remove("busy"); queueCmd(said);
+      }
+    }
+  };
+  rec.onerror = ev => {
+    if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+      wakeOn = false; paintWake(); add("sys", "Microphone blocked. Allow mic access for this page, then turn Hey Jarvis back on.");
+    }
+  };
+  rec.onend = () => { if (wakeOn && !speaking) setTimeout(startWake, 400); };
+  try { rec.start(); } catch {}
+}
+function paintWake() {
+  $("btnWake").textContent = "Hey Jarvis: " + (wakeOn ? "on" : "off");
+  $("btnWake").classList.toggle("on", wakeOn);
+  $("btnWake").setAttribute("aria-pressed", wakeOn);
+}
+$("btnWake").addEventListener("click", () => {
+  if (!SR) { add("sys", "Voice input needs Chrome or Safari."); return; }
+  if (location.protocol === "file:") { add("sys", "Hey Jarvis needs the page hosted on https (see the GitHub Pages steps). Opened as a file, Chrome asks for the mic again and again. The Mic button still works."); return; }
+  wakeOn = !wakeOn; paintWake();
+  if (wakeOn) { add("sys", "Listening for \"Jarvis\". Keep this tab open and the screen on."); startWake(); }
+  else { try { rec && rec.abort(); } catch {} }
+});
+
+$("btnSearch").addEventListener("click", () => {
+  searchOn = !searchOn; store.set("jarvis_search", searchOn); paintSearch();
+});
+function paintSearch() {
+  $("btnSearch").textContent = "Web search: " + (searchOn ? "on" : "off");
+  $("btnSearch").classList.toggle("on", searchOn);
+  $("btnSearch").setAttribute("aria-pressed", searchOn);
+}
+
+// Voice input (Chrome's built-in speech recognition)
+let micFinish = null;
+$("btnMic").addEventListener("click", () => {
+  if (micFinish) { micFinish(); return; }        // tap again to send right away
+  if (!SR) { add("sys", "Voice input needs Chrome."); return; }
+  const r = new SR();
+  r.lang = "en-US";
+  r.continuous = true;
+  r.interimResults = true;
+  let finalText = "", timer = null, done = false;
+  const finish = () => {
+    if (done) return; done = true; clearTimeout(timer); micFinish = null;
+    try { r.stop(); } catch {}
+    $("btnMic").classList.remove("on"); $("btnMic").textContent = "Mic";
+    const t = (finalText || $("input").value).trim(); $("input").value = "";
+    if (t) ask(t, true);
+  };
+  micFinish = finish;
+  const arm = () => { clearTimeout(timer); timer = setTimeout(finish, 3000); };   // 3 seconds of silence = done
+  r.onstart = () => { $("btnMic").classList.add("on"); $("btnMic").textContent = "Listening... (tap to send)"; arm(); setTimeout(finish, 60000); };
+  r.onresult = ev => {
+    let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript + " "; else interim += ev.results[i][0].transcript;
+    }
+    $("input").value = (finalText + interim).trim();
+    arm();
+  };
+  r.onend = finish;
+  r.onerror = ev => {
+    if (ev.error !== "no-speech" && ev.error !== "aborted") add("sys", "Mic error: " + ev.error + ". If it keeps asking for permission, host the page on https (see steps) or reset the site's mic setting from the lock icon in the address bar.");
+    done = true; clearTimeout(timer); micFinish = null; $("btnMic").classList.remove("on"); $("btnMic").textContent = "Mic";
+  };
+  r.start();
+});
+
+function paintVoice() {
+  $("btnVoice").textContent = "Voice replies: " + (voiceOn ? "on" : "off");
+  $("btnVoice").classList.toggle("on", voiceOn);
+  $("btnVoice").setAttribute("aria-pressed", voiceOn);
+}
+$("btnVoice").addEventListener("click", () => {
+  voiceOn = !voiceOn; store.set("jarvis_voice", voiceOn); paintVoice();
+  if (voiceOn) speak("Voice online.");
+});
+paintVoice();
+paintSearch();
+paintWake();
+
+$("btnKey").addEventListener("click", () => $("dlgKey").showModal());
+$("closeKey").addEventListener("click", () => $("dlgKey").close());
+$("saveKey").addEventListener("click", () => {
+  const k = $("keyField").value.trim();
+  if (k) { store.set("jarvis_key", k); $("keyField").value = ""; add("sys", "Key saved."); }
+  $("dlgKey").close();
+});
+
+$("btnMem").addEventListener("click", () => {
+  $("memView").textContent = notes.length
+    ? notes.map(n => `${new Date(n.t).toLocaleString()}: ${n.text}`).join("\n")
+    : "Nothing saved yet.";
+  $("dlgMem").showModal();
+});
+$("closeMem").addEventListener("click", () => $("dlgMem").close());
+$("clearMem").addEventListener("click", () => {
+  if (confirm("Erase everything JARVIS remembers?")) { notes = []; store.set("jarvis_notes", notes); $("dlgMem").close(); add("sys", "Memory erased."); }
+});
+
+// Spontaneous remarks: every few minutes, JARVIS may speak up on his own
+let chatty = store.get("jarvis_chatty", true);
+let lastActivity = Date.now();
+["keydown","click","pointermove"].forEach(ev => document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true }));
+
+async function spontaneous() {
+  const key = store.get("jarvis_key", "");
+  if (!chatty || !key || document.hidden || $("core").classList.contains("busy")) return schedule();
+  if (Date.now() - lastActivity > 10 * 60 * 1000) return schedule();   // you wandered off
+  $("core").classList.add("busy");
+  try {
+    const prompt = "You are speaking up on your own, unprompted. Make ONE short, funny or thoughtful remark (1 or 2 sentences) that fits the moment: the time of day, one of the saved notes, or a dry observation about the user's project. If a saved note involves a deadline or plan, you may nudge them about it. Do not ask more than one question. Do not use a [[SAVE]] tag.";
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+      body: JSON.stringify({ model: MODEL, temperature: 1.0, max_tokens: 120,
+        messages: [{ role: "system", content: systemPrompt() }, ...history.slice(-6), { role: "user", content: prompt }] })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const reply = data.choices[0].message.content.replace(/\[\[SAVE:[\s\S]*?\]\]/gi, "").trim();
+      if (reply) { history.push({ role: "assistant", content: reply }); add("ai", reply); speak(reply); }
+    }
+  } catch {} finally { $("core").classList.remove("busy"); }
+  schedule();
+}
+function schedule() { setTimeout(spontaneous, (4 + Math.random() * 6) * 60 * 1000); }   // every 4-10 min
+schedule();
+
+function paintChatty() {
+  $("btnChatty").textContent = "Chatty: " + (chatty ? "on" : "off");
+  $("btnChatty").classList.toggle("on", chatty);
+  $("btnChatty").setAttribute("aria-pressed", chatty);
+}
+$("btnChatty").addEventListener("click", () => { chatty = !chatty; store.set("jarvis_chatty", chatty); paintChatty(); });
+paintChatty();
+
+// Fresh, unscripted greeting every time the page opens
+const FALLBACK_GREETINGS = [
+  "Ah, you're back. I'd say I missed you, but I was busy counting the seconds. What are we breaking today?",
+  "Good to see you, sir. I've been idly rearranging my thoughts. Shall we build something questionable?",
+  "Right on cue. What's the plan: genius, mischief, or a respectable mix of both?",
+  "Online and mildly overqualified. What would you like to get into?",
+  "There you are. Tell me, is today a hockey day, a building day, or a both-and-a-snack day?"
+];
+async function greet() {
+  const key = store.get("jarvis_key", "");
+  const fallback = () => FALLBACK_GREETINGS[Math.floor(Math.random() * FALLBACK_GREETINGS.length)];
+  if (!key) { add("ai", fallback()); add("sys", "First, add your Groq API key with the button at the top right."); return; }
+  $("core").classList.add("busy");
+  try {
+    const prompt = "The user has just opened you up. Greet them with ONE short, spontaneous remark or question (1 or 2 sentences max), in character. Make it feel alive: react to the time of day, tease lightly, or follow up on one of the saved notes if one fits. Never say 'systems nominal' or any standard status report. Do not use a [[SAVE]] tag. Do not repeat a greeting you have used before.";
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+      body: JSON.stringify({ model: MODEL, temperature: 1.1, max_tokens: 120,
+        messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }] })
+    });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const reply = data.choices[0].message.content.replace(/\[\[SAVE:[\s\S]*?\]\]/gi, "").trim();
+    if (!reply) throw new Error("empty");
+    history.push({ role: "assistant", content: reply });
+    add("ai", reply);
+    speak(reply);
+  } catch { add("ai", fallback()); }
+  finally { $("core").classList.remove("busy"); }
+}
+greet();
+</script>
+</body>
+</html>
