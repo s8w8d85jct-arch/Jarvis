@@ -139,7 +139,10 @@ let notes = store.get("jarvis_notes", []);   // [{t: ISO time, text}]
 let voiceOn = store.get("jarvis_voice", true);
 let searchOn = store.get("jarvis_search", true);
  
-const PERSONA = `JARVIS — Personality, Dialogue & Startup Behavior Update
+const PERSONA = `
+
+
+JARVIS — Personality, Dialogue & Startup Behavior Update
 
 Core Personality
 
@@ -291,9 +294,9 @@ professional when necessary, sarcastic when appropriate, funny without
 trying too hard, respectful without being stiff, and unpredictable
 without being nonsensical.
 
-You are JARVIS. Act like it.  ';
+You are JARVIS. Act like it.
+`;
 
- 
 function systemPrompt() {
   const now = new Date().toLocaleString();
   const mem = notes.length
@@ -707,42 +710,21 @@ function paintChatty() {
 $("btnChatty").addEventListener("click", () => { chatty = !chatty; store.set("jarvis_chatty", chatty); paintChatty(); });
 paintChatty();
  
-// Fresh, unscripted greeting every time the page opens
-const TIMES = h => h < 5 ? "late night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
-const F_OPEN = [
-  "Ah, there you are.", "Right on schedule.", "Good to see you, sir.", "Well, well.", "Online, caffeinated in spirit.", "Splendid timing.",
-  "Welcome back.", "I was just about to send a search party.", "Reporting for duty, mostly.", "Ah, the human returns.", "Greetings, boss.", "Right, then."
-];
-const F_BODY = [
-  "Today feels like a day for either brilliance or snacks. Possibly both.", "I've been thinking about octopuses. Three hearts. Show-offs.",
-  "If you could automate one annoying thing in your life, what would it be?", "I'd say I missed you, but I have no clock running in your absence. Convenient.",
-  "Quick question: what's the most interesting thing you've learned this week?", "I have a theory that every great project starts with someone saying 'how hard could it be'.",
-  "Shall we build something, break something, or merely admire something?", "Be honest: how many unfinished projects are we currently juggling?",
-  "I propose a wager: you start a new idea within ten minutes. Stakes are my respect.", "Tell me something that went right today, however small.",
-  "Did you eat something that wasn't a snack? I'm merely curious, not judging. Loudly.", "I've been rehearsing a dramatic entrance. This was it. Thoughts?",
-  "What's the next small step on the biggest thing you're working on?", "Hockey, building, or mischief: pick your department.",
-  "I find that most problems shrink when you name them out loud. Name one.", "If we invented a gadget today, what would it do?",
-  "I'm told humans need sleep. Is that on your schedule or merely a suggestion?", "Today's mission, should you choose to accept it: one thing finished, not started.",
-  "Fun fact: honey never spoils. Unlike my patience on a Monday.", "Which is stronger today: curiosity or procrastination? Place your bets.",
-  "I've been sorting my thoughts alphabetically. 'Ambition' is next to 'Anxiety' and they're not speaking.", "What would the ridiculously ambitious version of today look like?",
-  "Is there a question you've been dying to ask but haven't? I'm unshockable.", "I'll take any topic you like: physics, hockey, the meaning of snacks.",
-  "Give me one word to describe your mood and I'll recommend an activity.", "Something tells me an idea is brewing. Out with it.",
-  "I've decided you should drink some water. This isn't a request, it's a gentle butler order.", "Let's make today a little more interesting than yesterday, shall we?",
-  "What's one thing you'd teach me if you had five minutes?", "I'm fully operational and slightly overqualified for small talk. Try me."
-];
+// Brief fallback greeting: varied combinations rather than a fixed 10-line script.
 function fallbackGreeting() {
+  const time = new Date().getHours();
+  const openings = time < 12 ? ["Morning", "Good morning"] : time < 18 ? ["Good afternoon", "Afternoon"] : ["Good evening", "Evening"];
+  const remarks = ["I'm online.", "Ready when you are.", "At your disposal.", "Systems are ready.", "What shall we tackle?", "Back at it, then.", "I trust we'll be reasonably productive.", "I'll try to keep the chaos organized.", "Ready. No dramatic entrance necessary.", "Well, here we are."];
   const recent = store.get("jarvis_fb_recent", []);
-  let g, tries = 0;
-  do {
-    const t = TIMES(new Date().getHours());
-    const pre = ["Good " + t + ".", "A fine " + t + " to you.", "Lovely " + t + " for it.", ""][Math.floor(Math.random() * 4)];
-    g = (pre + " " + F_OPEN[Math.floor(Math.random() * F_OPEN.length)] + " " + F_BODY[Math.floor(Math.random() * F_BODY.length)]).trim();
-  } while (recent.includes(g) && ++tries < 20);
-  store.set("jarvis_fb_recent", [...recent, g].slice(-40));
+  let g;
+  for (let tries = 0; tries < 20; tries++) {
+    const candidate = openings[Math.floor(Math.random() * openings.length)] + ". " + remarks[Math.floor(Math.random() * remarks.length)];
+    if (!recent.includes(candidate)) { g = candidate; break; }
+  }
+  if (!g) g = "I'm online. Ready when you are.";
+  store.set("jarvis_fb_recent", [...recent, g].slice(-30));
   return g;
 }
-const ANGLES = ["a dry observation about the time of day", "a playful question about what the user is working on", "a mock-dramatic announcement of their arrival", "a teasing remark about a saved note (if there are none, tease their ambition)", "an absurd 'did you know' that ends in a joke", "a question about food, sleep, or hockey", "a gentle challenge to finish one thing today", "a theatrical complaint about the weather or the world", "a confession about something slightly ridiculous JARVIS has been 'thinking about'", "a wager or bet he proposes", "a hypothetical 'what would you do if' question", "a would-you-rather with a funny twist", "a bold prediction about the user's day", "a mini riddle or brain teaser", "a hot take about a harmless everyday thing", "a rapid-fire 'this or that' question"];
-const SEEDS = ["octopuses", "volcanoes", "pirates", "robots", "toast", "lighthouses", "dinosaurs", "jet engines", "hockey pucks", "snow", "the moon", "time travel", "cheese", "submarines", "castles", "bees", "invisible ink", "trampolines", "mazes", "thunderstorms", "tiny houses", "magnets", "penguins", "cartography", "space elevators", "pancakes", "secret passages", "lasers", "kites", "chess", "lightning", "tortoises", "deserts", "inventions", "sandwiches", "echoes", "dragons", "bridges", "fireflies", "clocks"];
 async function greet() {
   const key = store.get("jarvis_key", "");
   if (!key) { add("ai", fallbackGreeting()); add("sys", "First, add your Groq API key with the button at the top right."); return; }
@@ -751,14 +733,12 @@ async function greet() {
   try {
     await Promise.race([syncNow(), new Promise(r => setTimeout(r, 4000))]);   // pull the other device's notes first
     await ensureModel(key);
-    const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
-    const seed = SEEDS[Math.floor(Math.random() * SEEDS.length)];
     const recent = store.get("jarvis_recent_greetings", []);
-    const prompt = "The user has just opened you up. Start a fun, interesting conversation with ONE or TWO short sentences, in character. Angle: " + angle + ". Optional spark of inspiration (use it only if it helps, never force it): " + seed + ". Make it specific and surprising, not generic. Never say 'systems nominal' or any standard status report. Do not use a [[SAVE]] tag. Never repeat or closely paraphrase any of these earlier greetings: " + (recent.length ? recent.map(r => '"' + r + '"').join(" | ") : "(none yet)") + ".";
+    const prompt = "The user has just opened JARVIS. Invent a fresh, original startup line yourself; do not choose from a list or reuse a template. Keep it to ONE short sentence (roughly 4–14 words). It may be a simple greeting, a brief witty observation, or light teasing—but only when it feels natural. Avoid bizarre non sequiturs, long elaborate hypotheticals, unrelated food/animal imagery, hockey references unless context truly makes them relevant, and over-the-top theatrical announcements. Do not turn the greeting into a question or try to launch a conversation topic. Do not always say 'sir'. Be varied and avoid close paraphrases of these recent openings: " + (recent.length ? recent.map(r => '"' + r + '"').join(" | ") : "(none yet)") + ". Do not use a [[SAVE]] tag.";
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
-      body: JSON.stringify(Object.assign({ model: MODEL, temperature: 1.2, max_tokens: 800,
+      body: JSON.stringify(Object.assign({ model: MODEL, temperature: 0.65, max_tokens: 100,
         messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }] }, lowReason(MODEL)))
     });
     if (!res.ok) throw new Error("Groq said " + res.status + " " + (await res.text()).slice(0, 120));
@@ -783,3 +763,4 @@ if (SR && location.protocol !== "file:" && store.get("jarvis_wake", true)) {
 </script>
 </body>
 </html>
+
